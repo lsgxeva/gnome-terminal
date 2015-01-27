@@ -243,6 +243,7 @@ terminal_notebook_switch_page (GtkNotebook     *gtk_notebook,
 {
   TerminalNotebook *notebook = TERMINAL_NOTEBOOK (gtk_notebook);
   TerminalNotebookPrivate *priv = notebook->priv;
+  GtkWidget *tab_label;
   TerminalScreen *screen, *old_active_screen;
 
   GTK_NOTEBOOK_CLASS (terminal_notebook_parent_class)->switch_page (gtk_notebook, child, page_num);
@@ -252,6 +253,9 @@ terminal_notebook_switch_page (GtkNotebook     *gtk_notebook,
   old_active_screen = priv->active_screen;
   if (screen == old_active_screen)
     return;
+
+  tab_label = gtk_notebook_get_tab_label (gtk_notebook, child);
+  terminal_tab_label_set_icon (TERMINAL_TAB_LABEL (tab_label), NULL);
 
   /* Workaround to remove gtknotebook's feature of computing its size based on
    * all pages. When the widget is hidden, its size will not be taken into

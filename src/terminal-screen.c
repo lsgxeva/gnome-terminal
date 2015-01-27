@@ -48,6 +48,7 @@
 #include "terminal-marshal.h"
 #include "terminal-schemas.h"
 #include "terminal-screen-container.h"
+#include "terminal-tab-label.h"
 #include "terminal-util.h"
 #include "terminal-window.h"
 #include "terminal-info-bar.h"
@@ -81,6 +82,7 @@ struct _TerminalScreenPrivate
   char **initial_env;
   char **override_command;
   gboolean shell;
+  gboolean shell_prompt_shown;
   int child_pid;
   GSList *match_tags;
   guint launch_child_source_id;
@@ -136,6 +138,9 @@ static gboolean terminal_screen_do_exec (TerminalScreen *screen,
                                          GError **error);
 static void terminal_screen_child_exited  (VteTerminal *terminal,
                                            int status);
+static void terminal_screen_notification_received (VteTerminal *terminal,
+                                                   const char  *summary,
+                                                   const char  *body);
 
 static void terminal_screen_window_title_changed      (VteTerminal *vte_terminal,
                                                        TerminalScreen *screen);
@@ -440,6 +445,7 @@ terminal_screen_class_init (TerminalScreenClass *klass)
   widget_class->popup_menu = terminal_screen_popup_menu;
 
   terminal_class->child_exited = terminal_screen_child_exited;
+  terminal_class->notification_received = terminal_screen_notification_received;
 
   signals[PROFILE_SET] =
     g_signal_new (I_("profile-set"),
@@ -561,6 +567,10 @@ terminal_screen_dispose (GObject *object)
   TerminalScreen *screen = TERMINAL_SCREEN (object);
   TerminalScreenPrivate *priv = screen->priv;
   GtkSettings *settings;
+  TerminalApp *app;
+
+  app = terminal_app_get ();
+  g_application_withdraw_notification (G_APPLICATION (app), priv->uuid);
 
   settings = gtk_widget_get_settings (GTK_WIDGET (screen));
   g_signal_handlers_disconnect_matched (settings, G_SIGNAL_MATCH_DATA,
@@ -1525,6 +1535,13 @@ static void
 terminal_screen_window_title_changed (VteTerminal *vte_terminal,
                                       TerminalScreen *screen)
 {
+  TerminalScreenPrivate *priv = screen->priv;
+
+  if (!priv->override_command &&
+      !g_settings_get_boolean (priv->profile, TERMINAL_PROFILE_USE_CUSTOM_COMMAND_KEY) &&
+      priv->shell)
+    priv->shell_prompt_shown = TRUE;
+
   g_object_notify (G_OBJECT (screen), "title");
 }
 
@@ -1592,6 +1609,64 @@ terminal_screen_child_exited (VteTerminal *terminal,
 
     default:
       break;
+    }
+}
+
+static void
+terminal_screen_notification_received (VteTerminal *terminal,
+                                       const char  *summary,
+                                       const char  *body)
+{
+  TerminalScreen *screen = TERMINAL_SCREEN (terminal);
+  TerminalScreenPrivate *priv = screen->priv;
+  TerminalWindow *window;
+
+  if (!priv->override_command &&
+      !g_settings_get_boolean (priv->profile, TERMINAL_PROFILE_USE_CUSTOM_COMMAND_KEY) &&
+      priv->shell &&
+      !priv->shell_prompt_shown)
+    return;
+
+  window = terminal_screen_get_window (screen);
+  if (window == NULL)
+    return;
+
+  if (gtk_window_is_active (GTK_WINDOW (window)))
+    {
+      GtkWidget *mdi_container;
+      TerminalScreenContainer *screen_container;
+
+      if (screen == terminal_window_get_active (window))
+        return;
+
+      screen_container = terminal_screen_container_get_from_screen (screen);
+      if (screen_container == NULL)
+        return;
+
+      mdi_container = terminal_window_get_mdi_container (window);
+      /* FIXME: add interface method to retrieve tab label */
+      if (GTK_IS_NOTEBOOK (mdi_container))
+        {
+          GtkWidget *tab_label;
+
+          tab_label = gtk_notebook_get_tab_label (GTK_NOTEBOOK (mdi_container), GTK_WIDGET (screen_container));
+          terminal_tab_label_set_bold (TERMINAL_TAB_LABEL (tab_label), TRUE);
+          terminal_tab_label_set_icon (TERMINAL_TAB_LABEL (tab_label), "dialog-information-symbolic");
+        }
+    }
+  else
+    {
+      gs_unref_object GNotification *notification = NULL;
+      TerminalApp *app;
+      gs_free char *detailed_action = NULL;
+
+      notification = g_notification_new (summary);
+      g_notification_set_body (notification, body);
+      detailed_action = g_strdup_printf ("app.activate-tab::%s", priv->uuid);
+      g_notification_set_default_action (notification, detailed_action);
+
+      app = terminal_app_get ();
+      g_application_send_notification (G_APPLICATION (app), priv->uuid, notification);
     }
 }
 
