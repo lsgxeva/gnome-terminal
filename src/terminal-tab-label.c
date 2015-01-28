@@ -190,13 +190,12 @@ terminal_tab_label_constructed (GObject *object)
   gtk_box_set_spacing (GTK_BOX (hbox), SPACING);
 
   priv->label = label = gtk_label_new (NULL);
-  gtk_widget_set_halign (label, GTK_ALIGN_CENTER);
   gtk_widget_set_valign (label, GTK_ALIGN_BASELINE);
   gtk_misc_set_padding (GTK_MISC (label), 0, 0);
   gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_END);
   gtk_label_set_single_line_mode (GTK_LABEL (label), TRUE);
 
-  gtk_box_pack_start (GTK_BOX (hbox), label, TRUE, TRUE, 0);
+  gtk_box_set_center_widget (GTK_BOX (hbox), label);
 
   priv->close_button = close_button = terminal_close_button_new ();
   gtk_widget_set_tooltip_text (close_button, _("Close tab"));
