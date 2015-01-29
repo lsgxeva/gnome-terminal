@@ -1621,6 +1621,8 @@ terminal_screen_notification_received (VteTerminal *terminal,
   TerminalScreenPrivate *priv = screen->priv;
   TerminalWindow *window;
 
+  _terminal_debug_print (TERMINAL_DEBUG_NOTIFICATIONS, "Notification received: [%s]: %s\n", summary, body);
+
   if (!priv->override_command &&
       !g_settings_get_boolean (priv->profile, TERMINAL_PROFILE_USE_CUSTOM_COMMAND_KEY) &&
       priv->shell &&
@@ -1652,6 +1654,7 @@ terminal_screen_notification_received (VteTerminal *terminal,
           tab_label = gtk_notebook_get_tab_label (GTK_NOTEBOOK (mdi_container), GTK_WIDGET (screen_container));
           terminal_tab_label_set_bold (TERMINAL_TAB_LABEL (tab_label), TRUE);
           terminal_tab_label_set_icon (TERMINAL_TAB_LABEL (tab_label), "dialog-information-symbolic");
+          _terminal_debug_print (TERMINAL_DEBUG_NOTIFICATIONS, "Notify tab\n");
         }
     }
   else
@@ -1667,6 +1670,7 @@ terminal_screen_notification_received (VteTerminal *terminal,
 
       app = terminal_app_get ();
       g_application_send_notification (G_APPLICATION (app), priv->uuid, notification);
+      _terminal_debug_print (TERMINAL_DEBUG_NOTIFICATIONS, "Notify desktop\n");
     }
 }
 
